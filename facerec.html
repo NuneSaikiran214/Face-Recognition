@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceID Recognition System</title>
+    <style>
+        :root {
+            --ios-blur: blur(20px);
+            --ios-radius: 30px;
+            --accent-color: #007aff;
+            --success-color: #34c759;
+            --error-color: #ff3b30;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1f1c2c, #928dab);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        /* Phone Container Mockup */
+        .phone-container {
+            width: 390px;
+            height: 844px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 8px solid #333;
+            border-radius: 50px;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 60px 20px 40px 20px;
+            backdrop-filter: var(--ios-blur);
+            overflow: hidden;
+        }
+
+        /* Notch / Dynamic Island */
+        .notch {
+            width: 110px;
+            height: 30px;
+            background: #000;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 18px;
+            z-index: 10;
+        }
+
+        /* FaceID Padlock Header */
+        .status-header {
+            text-align: center;
+            z-index: 2;
+        }
+
+        .padlock {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 15px auto;
+            position: relative;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .padlock .shackle {
+            width: 26px;
+            height: 22px;
+            border: 4px solid #fff;
+            border-bottom: none;
+            border-top-left-radius: 13px;
+            border-top-right-radius: 13px;
+            position: absolute;
+            top: 0;
+            left: 7px;
+            transition: transform 0.3s ease, border-color 0.3s;
+        }
+
+        .padlock .body {
+            width: 36px;
+            height: 24px;
+            background: #fff;
+            border-radius: 6px;
+            position: absolute;
+            bottom: 0;
+            left: 2px;
+            transition: background 0.3s;
+        }
+
+        /* Padlock States */
+        .padlock.unlocked .shackle {
+            transform: translateY(-6px) rotate(-15deg);
+            border-color: var(--success-color);
+        }
+        .padlock.unlocked .body { background: var(--success-color); }
+        
+        .padlock.failed {
+            animation: shake 0.4s ease-in-out;
+        }
+        .padlock.failed .shackle, .padlock.failed .body {
+            border-color: var(--error-color);
+            background: var(--error-color);
+        }
+
+        .time {
+            font-size: 4.5rem;
+            font-weight: 200;
+            letter-spacing: -1px;
+            margin-top: 5px;
+        }
+
+        .date {
+            font-size: 1rem;
+            font-weight: 500;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Camera Viewport Wrapper */
+        .camera-wrapper {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        /* Scanning Overlay Effect */
+        .scanner-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            animation: rotateRing 20s linear infinite;
+            pointer-events: none;
+        }
+
+        /* Footer Info */
+        .footer-text {
+            font-size: 0.95rem;
+            font-weight: 400;
+            opacity: 0.7;
+            text-align: center;
+            margin-bottom: 20px;
+            height: 40px;
+            transition: color 0.3s;
+        }
+
+        /* Action Panel for Registration */
+        .action-panel {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 14px 28px;
+            color: white;
+            border-radius: 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Animations */
+        @keyframes rotateRing {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        /* App Home Screen */
+        .home-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1c1c1e;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transform: translateY(100%);
+            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: 42px;
+        }
+
+        .home-screen.active {
+            transform: translateY(0);
+        }
+
+        .welcome-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px 30px;
+            border-radius: var(--ios-radius);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 85%;
+        }
+
+        .welcome-card h2 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--success-color);
+        }
+
+        .reset-btn {
+            margin-top: 30px;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 24px;
+            background: #fff;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+        .reset-btn:hover { background: #e5e5ea; }
+    </style>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+</head>
+<body>
+
+    <div class="phone-container">
+        <div class="notch"></div>
+
+        <div class="status-header">
+            <div class="padlock" id="padlock">
+                <div class="shackle"></div>
+                <div class="body"></div>
+            </div>
+            <div class="date" id="current-date">Friday, June 26</div>
+            <div class="time" id="current-time">00:00</div>
+        </div>
+
+        <div class="camera-wrapper">
+            <div class="scanner-ring"></div>
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="footer-text" id="status-text">Initializing AI Core...</div>
+
+        <div class="action-panel">
+            <button class="btn" id="action-btn" disabled>Scan Face Identity</button>
+        </div>
+
+        <div class="home-screen" id="home-screen">
+            <div class="welcome-card">
+                <h2>Face ID Verified</h2>
+                <p style="opacity: 0.7; margin-top: 10px;">Welcome back. Device unlocked successfully.</p>
+                <button class="reset-btn" id="lock-btn">Lock Device</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('overlay');
+        const statusText = document.getElementById('status-text');
+        const actionBtn = document.getElementById('action-btn');
+        const padlock = document.getElementById('padlock');
+        const homeScreen = document.getElementById('home-screen');
+        const lockBtn = document.getElementById('lock-btn');
+
+        let enrolledDescriptor = null;
+        let isRecognizing = false;
+        let faceDetectionInterval = null;
+
+        // Update Simulated Clock UI
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            document.getElementById('current-date').textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // 1. Load weights directly from Hosted Public CDN models safely
+        async function initSystem() {
+            try {
+                statusText.textContent = "Loading Deep Learning Models...";
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+                
+                // Concurrently pull essential tracking structures
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+
+                statusText.textContent = "Models Ready. Activating Camera...";
+                startCamera();
+            } catch (err) {
+                statusText.textContent = "Failed loading neural assets.";
+                console.error(err);
+            }
+        }
+
+        // 2. Safely capture stream
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: { ideal: 30 } } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.addEventListener('playing', () => {
+                        statusText.textContent = "No Face Key Enrolled.";
+                        actionBtn.removeAttribute('disabled');
+                        actionBtn.textContent = "Register Face Identity";
+                    });
+                })
+                .catch(err => {
+                    statusText.textContent = "Camera access denied.";
+                    console.error(err);
+                });
+        }
+
+        // 3. Execution pipeline logic
+        actionBtn.addEventListener('click', async () => {
+            if (!enrolledDescriptor) {
+                // Enrollment phase
+                statusText.textContent = "Scanning features... Hold still.";
+                actionBtn.setAttribute('disabled', 'true');
+
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (detection) {
+                    enrolledDescriptor = detection.descriptor;
+                    statusText.textContent = "Identity Enrolled Successfully!";
+                    statusText.style.color = "var(--success-color)";
+                    
+                    setTimeout(() => {
+                        statusText.style.color = "#fff";
+                        statusText.textContent = "Device Locked.";
+                        actionBtn.removeAttribute('disabled');
+                        actionBtn.textContent = "Authenticate with Face ID";
+                    }, 2000);
+                } else {
+                    statusText.textContent = "Enrollment failed. Face not found.";
+                    actionBtn.removeAttribute('disabled');
+                    triggerFailureUI();
+                }
+            } else {
+                // Match verification phase
+                if (isRecognizing) return;
+                startVerificationLoop();
+            }
+        });
+
+        // 4. Real-time scanning & mathematical comparison loop
+        function startVerificationLoop() {
+            isRecognizing = true;
+            actionBtn.setAttribute('disabled', 'true');
+            statusText.textContent = "Looking for face...";
+            
+            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            faceDetectionInterval = setInterval(async () => {
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (detection) {
+                    // Normalize mapping bounds
+                    const resizedDetections = faceapi.resizeResults(detection, displaySize);
+                    
+                    // Render sophisticated face geometric alignment map
+                    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+
+                    // Compute Distance Metric (Euclidean Space)
+                    const distance = faceapi.euclideanDistance(enrolledDescriptor, detection.descriptor);
+                    
+                    // Standard verification strictness threshold <= 0.55
+                    if (distance < 0.55) {
+                        clearInterval(faceDetectionInterval);
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        triggerSuccessUI();
+                    } else {
+                        statusText.textContent = "Evaluating Identity... Mismatch.";
+                    }
+                } else {
+                    statusText.textContent = "Searching for credentials...";
+                }
+            }, 200);
+
+            // Timeout authentication attempt after 7 seconds if mismatch persists
+            setTimeout(() => {
+                if (isRecognizing) {
+                    stopVerificationLoop();
+                    statusText.textContent = "Face ID: Match Timeout.";
+                    triggerFailureUI();
+                }
+            }, 7000);
+        }
+
+        function stopVerificationLoop() {
+            clearInterval(faceDetectionInterval);
+            isRecognizing = false;
+            actionBtn.removeAttribute('disabled');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function triggerSuccessUI() {
+            isRecognizing = false;
+            padlock.classList.add('unlocked');
+            statusText.textContent = "Access Granted.";
+            statusText.style.color = "var(--success-color)";
+            
+            setTimeout(() => {
+                homeScreen.classList.add('active');
+            }, 600);
+        }
+
+        function triggerFailureUI() {
+            padlock.classList.add('failed');
+            statusText.style.color = "var(--error-color)";
+            setTimeout(() => {
+                padlock.classList.remove('failed');
+                statusText.style.color = "#fff";
+                if(enrolledDescriptor) statusText.textContent = "Device Locked.";
+            }, 800);
+        }
+
+        lockBtn.addEventListener('click', () => {
+            homeScreen.classList.remove('active');
+            padlock.classList.remove('unlocked');
+            statusText.style.color = "#fff";
+            statusText.textContent = "Device Locked.";
+            actionBtn.removeAttribute('disabled');
+        });
+
+        // Initialize Engine
+        window.onload = initSystem;
+    </script>
+</body>
+</html>
